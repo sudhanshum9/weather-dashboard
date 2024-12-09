@@ -1,5 +1,6 @@
 Weather Dashboard
 ================
+![Project Dashboard](./Dashboard-Screenshot-1.png)
 
 Overview
 --------
@@ -14,6 +15,7 @@ The Weather Dashboard is a web-based application that allows users to:
 
 Requirements
 ------------
+
 
 The application is built with the following technologies:
 
