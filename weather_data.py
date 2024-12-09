@@ -1,4 +1,5 @@
 import os, asyncio
+import requests
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,6 +38,7 @@ cities = [
     {"City": "Rio de Janeiro", "Latitude": -22.9068, "Longitude": -43.1729},
 ]
 
+
 # To fetch weather for a single city
 async def fetch_weather_for_city(city):
     api_url = f"https://api.open-meteo.com/v1/forecast?latitude={city['Latitude']}&longitude={city['Longitude']}&current_weather=true"
@@ -49,9 +51,12 @@ async def fetch_weather_for_city(city):
                     "City": city["City"],
                     "Temperature (C)": data["current_weather"]["temperature"],
                     "Wind Speed (m/s)": data["current_weather"]["windspeed"],
-                    "Humidity (%)": data["current_weather"].get("relative_humidity", "N/A"),
+                    "Humidity (%)": data["current_weather"].get(
+                        "relative_humidity", "N/A"
+                    ),
                 }
     return None
+
 
 # To generate weather data CSV
 async def generate_weather_csv_async():
@@ -64,6 +69,7 @@ async def generate_weather_csv_async():
     df["Wind Speed (mph)"] = df["Wind Speed (m/s)"] * 2.23694
     df.to_csv("weather_data_with_geocoding.csv", index=False)
 
+
 # Cached function to load weather data from CSV
 @lru_cache
 def get_weather_data_from_csv():
@@ -71,88 +77,84 @@ def get_weather_data_from_csv():
 
 
 @app.get("/weather-data")
-async def get_weather_data(
+def get_weather_data(
     sort_by: str = Query("Temperature (C)", description="Field to sort by"),
     order: str = Query("desc", description="Sort order: 'asc' or 'desc'"),
-    filter_by: str = Query(None, description="Field to filter by"),
-    filter_value: str = Query(None, description="Value to filter by"),
+    filter_value: str = Query(
+        None, description="Value to filter by (applies to 'City')"
+    ),
 ):
     try:
-        csv_file = "weather_data_with_geocoding.csv"
+        # Load weather data
+        df = pd.read_csv("weather_data_with_geocoding.csv")
 
-        # If file does not exist or is empty, fetch data for default cities
-        if not os.path.exists(csv_file) or os.path.getsize(csv_file) == 0:
-            weather_data = await asyncio.gather(
-                *(fetch_weather_for_city(city) for city in cities)
-            )
-            weather_data = [data for data in weather_data if data]
-
-            if not weather_data:
-                raise HTTPException(
-                    status_code=500, detail="Failed to fetch default weather data."
-                )
-
-            df = pd.DataFrame(weather_data)
-            df["Temperature (F)"] = df["Temperature (C)"] * 9 / 5 + 32
-            df["Wind Speed (mph)"] = df["Wind Speed (m/s)"] * 2.23694
-            df.to_csv(csv_file, index=False)
-
-        df = pd.read_csv(csv_file)
-
-        # Replace invalid numeric values with defaults
+        # Replace invalid numeric values (NaN, inf) with 0 or default valid values
         df.replace([float("inf"), float("-inf")], None, inplace=True)
         df.fillna(
             {"Temperature (C)": 0, "Wind Speed (m/s)": 0, "Humidity (%)": "N/A"},
             inplace=True,
         )
 
-        if filter_by and filter_value:
-            df = df[df[filter_by].astype(str).str.contains(filter_value, case=False)]
+        # Apply filtering based on 'City'
+        if filter_value:
+            df = df[df["City"].astype(str).str.contains(filter_value, case=False)]
 
+        # Apply sorting
         df = df.sort_values(by=sort_by, ascending=(order == "asc"))
 
+        # Convert DataFrame to JSON-friendly format
         return df.to_dict(orient="records")
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error processing weather data: {str(e)}"
         )
-    
+
 
 @app.post("/add-city")
 async def add_city(city: str):
     geocoding_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}"
-    async with httpx.AsyncClient() as client:
-        response = await client.get(geocoding_url)
-        if response.status_code != 200:
-            raise HTTPException(status_code=400, detail="Geocoding API request failed.")
-        data = response.json()
-        if "results" not in data or not data["results"]:
-            raise HTTPException(status_code=404, detail="City not found.")
-        result = data["results"][0]
-        new_city = {
-            "City": city,
-            "Latitude": result["latitude"],
-            "Longitude": result["longitude"],
-        }
-        cities.append(new_city)
+    response = requests.get(geocoding_url)
+    if response.status_code != 200:
+        raise HTTPException(status_code=400, detail="Geocoding API request failed.")
 
-    # Fetch weather for the new city and update the CSV
-    new_city_weather = await fetch_weather_for_city(new_city)
-    if not new_city_weather:
-        raise HTTPException(status_code=500, detail="Failed to fetch weather data.")
+    data = response.json()
+    if "results" not in data or not data["results"]:
+        raise HTTPException(status_code=404, detail="City not found.")
 
-    # Check if CSV exists and is non-empty
+    # Get the first result
+    result = data["results"][0]
+    new_city = {
+        "City": city,
+        "Latitude": result["latitude"],
+        "Longitude": result["longitude"],
+    }
+    cities.append(new_city)
+
+    # Fetch weather data for the new city (await properly)
+    city_weather = await fetch_weather_for_city(new_city)
+    if not city_weather:
+        raise HTTPException(
+            status_code=500, detail="Failed to fetch weather data for the new city."
+        )
+
+    # Append the new city's weather data to the CSV
     csv_file = "weather_data_with_geocoding.csv"
-    if os.path.exists(csv_file) and os.path.getsize(csv_file) > 0:
-        df = pd.read_csv(csv_file)
-    else:
-        df = pd.DataFrame()
+    try:
+        # Check if the file exists and has content
+        if os.path.exists(csv_file) and os.path.getsize(csv_file) > 0:
+            df = pd.read_csv(csv_file)
+        else:
+            df = pd.DataFrame()
 
-    new_df = pd.DataFrame([new_city_weather])
-    new_df["Temperature (F)"] = new_df["Temperature (C)"] * 9 / 5 + 32
-    new_df["Wind Speed (mph)"] = new_df["Wind Speed (m/s)"] * 2.23694
-    updated_df = pd.concat([df, new_df], ignore_index=True)
-    updated_df.to_csv(csv_file, index=False)
+        # Append new data
+        df = pd.concat([df, pd.DataFrame([city_weather])], ignore_index=True)
+
+        # Recalculate additional fields
+        df["Temperature (F)"] = df["Temperature (C)"] * 9 / 5 + 32
+        df["Wind Speed (mph)"] = df["Wind Speed (m/s)"] * 2.23694
+        df.to_csv(csv_file, index=False)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating CSV: {str(e)}")
 
     return {"message": f"City '{city}' added successfully."}
 
@@ -195,7 +197,9 @@ async def plot_temperature():
         df = pd.read_csv(csv_file)
         plt.figure(figsize=(12, 6))
         plt.bar(df["City"], df["Temperature (C)"], color="blue", alpha=0.7)
-        plt.axhline(0, color="gray", linestyle="--", linewidth=0.8)  # Add reference line for 0°C
+        plt.axhline(
+            0, color="gray", linestyle="--", linewidth=0.8
+        )  # Add reference line for 0°C
         plt.title("Temperature (C) in Various Cities")
         plt.xlabel("City")
         plt.ylabel("Temperature (C)")
@@ -239,12 +243,24 @@ async def plot_combined():
 
         ax1.set_xlabel("City")
         ax1.set_ylabel("Temperature (C)", color="blue")
-        ax1.plot(df["City"], df["Temperature (C)"], marker="o", color="blue", label="Temperature (C)")
+        ax1.plot(
+            df["City"],
+            df["Temperature (C)"],
+            marker="o",
+            color="blue",
+            label="Temperature (C)",
+        )
         ax1.tick_params(axis="y", labelcolor="blue")
 
         ax2 = ax1.twinx()
         ax2.set_ylabel("Wind Speed (m/s)", color="green")
-        ax2.plot(df["City"], df["Wind Speed (m/s)"], marker="s", color="green", label="Wind Speed (m/s)")
+        ax2.plot(
+            df["City"],
+            df["Wind Speed (m/s)"],
+            marker="s",
+            color="green",
+            label="Wind Speed (m/s)",
+        )
         ax2.tick_params(axis="y", labelcolor="green")
 
         plt.title("Combined Temperature and Wind Speed in Various Cities")

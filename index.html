@@ -101,10 +101,8 @@
           <div class="mb-3">
             <label for="sort-by" class="form-label">Sort By</label>
             <select id="sort-by" class="form-select">
-              <option value="Temperature (C)">Temperature (C)</option>
-              <option value="Temperature (F)">Temperature (F)</option>
-              <option value="Wind Speed (m/s)">Wind Speed (m/s)</option>
-              <option value="Wind Speed (mph)">Wind Speed (mph)</option>
+              <option value="Temperature (C)">Temperature</option>
+              <option value="Wind Speed (m/s)">Wind Speed</option>
               <option value="Humidity (%)">Humidity (%)</option>
             </select>
           </div>
@@ -113,15 +111,6 @@
             <select id="order" class="form-select">
               <option value="desc">Descending</option>
               <option value="asc">Ascending</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label for="filter-by" class="form-label">Filter By</label>
-            <select id="filter-by" class="form-select">
-              <option value="">None</option>
-              <option value="City">City</option>
-              <option value="Temperature (C)">Temperature (C)</option>
-              <option value="Humidity (%)">Humidity (%)</option>
             </select>
           </div>
           <div class="mb-3">
@@ -249,11 +238,9 @@
     function applyFilters() {
       const sortBy = document.getElementById("sort-by").value;
       const order = document.getElementById("order").value;
-      const filterBy = document.getElementById("filter-by").value;
       const filterValue = document.getElementById("filter-value").value;
       const filters = { sort_by: sortBy, order };
-      if (filterBy && filterValue) {
-        filters.filter_by = filterBy;
+      if (filterValue) {
         filters.filter_value = filterValue;
       }
       showLoader(true, "Applying filters...");
