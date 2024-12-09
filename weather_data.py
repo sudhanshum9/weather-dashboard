@@ -24,7 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory city list with latitudes and longitudes
+# Default city list with latitudes and longitudes
 cities = [
     {"City": "New York", "Latitude": 40.7128, "Longitude": -74.0060},
     {"City": "Tokyo", "Latitude": 35.6895, "Longitude": 139.6917},
@@ -37,7 +37,7 @@ cities = [
     {"City": "Rio de Janeiro", "Latitude": -22.9068, "Longitude": -43.1729},
 ]
 
-# Async function to fetch weather for a single city
+# To fetch weather for a single city
 async def fetch_weather_for_city(city):
     api_url = f"https://api.open-meteo.com/v1/forecast?latitude={city['Latitude']}&longitude={city['Longitude']}&current_weather=true"
     async with httpx.AsyncClient() as client:
@@ -53,7 +53,7 @@ async def fetch_weather_for_city(city):
                 }
     return None
 
-# Async function to generate weather data CSV
+# To generate weather data CSV
 async def generate_weather_csv_async():
     weather_data = await asyncio.gather(
         *(fetch_weather_for_city(city) for city in cities)
@@ -69,7 +69,7 @@ async def generate_weather_csv_async():
 def get_weather_data_from_csv():
     return pd.read_csv("weather_data_with_geocoding.csv")
 
-# Endpoint to fetch filtered and sorted weather data
+
 @app.get("/weather-data")
 async def get_weather_data(
     sort_by: str = Query("Temperature (C)", description="Field to sort by"),
@@ -92,13 +92,11 @@ async def get_weather_data(
                     status_code=500, detail="Failed to fetch default weather data."
                 )
 
-            # Create the CSV with default cities
             df = pd.DataFrame(weather_data)
             df["Temperature (F)"] = df["Temperature (C)"] * 9 / 5 + 32
             df["Wind Speed (mph)"] = df["Wind Speed (m/s)"] * 2.23694
             df.to_csv(csv_file, index=False)
 
-        # Load the CSV file
         df = pd.read_csv(csv_file)
 
         # Replace invalid numeric values with defaults
@@ -108,11 +106,9 @@ async def get_weather_data(
             inplace=True,
         )
 
-        # Apply filtering
         if filter_by and filter_value:
             df = df[df[filter_by].astype(str).str.contains(filter_value, case=False)]
 
-        # Apply sorting
         df = df.sort_values(by=sort_by, ascending=(order == "asc"))
 
         return df.to_dict(orient="records")
@@ -121,7 +117,7 @@ async def get_weather_data(
             status_code=500, detail=f"Error processing weather data: {str(e)}"
         )
     
-# Endpoint to add a new city and update the CSV incrementally
+
 @app.post("/add-city")
 async def add_city(city: str):
     geocoding_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}"
@@ -150,7 +146,7 @@ async def add_city(city: str):
     if os.path.exists(csv_file) and os.path.getsize(csv_file) > 0:
         df = pd.read_csv(csv_file)
     else:
-        df = pd.DataFrame()  # Initialize an empty DataFrame
+        df = pd.DataFrame()
 
     new_df = pd.DataFrame([new_city_weather])
     new_df["Temperature (F)"] = new_df["Temperature (C)"] * 9 / 5 + 32
@@ -160,7 +156,7 @@ async def add_city(city: str):
 
     return {"message": f"City '{city}' added successfully."}
 
-# Endpoint to download the weather data CSV
+
 @app.get("/download/weather-data")
 def download_csv():
     try:
@@ -172,7 +168,7 @@ def download_csv():
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Weather data CSV not found.")
 
-# Endpoint to serve the temperature graph
+
 @app.get("/plot/temperature")
 async def plot_temperature():
     csv_file = "weather_data_with_geocoding.csv"
@@ -190,13 +186,11 @@ async def plot_temperature():
                 status_code=500, detail="Failed to fetch default weather data."
             )
 
-        # Save default data to CSV
         df = pd.DataFrame(weather_data)
         df["Temperature (F)"] = df["Temperature (C)"] * 9 / 5 + 32
         df["Wind Speed (mph)"] = df["Wind Speed (m/s)"] * 2.23694
         df.to_csv(csv_file, index=False)
 
-    # Load the data and create the bar chart
     try:
         df = pd.read_csv(csv_file)
         plt.figure(figsize=(12, 6))
@@ -234,30 +228,25 @@ async def plot_combined():
                 status_code=500, detail="Failed to fetch default weather data."
             )
 
-        # Save default data to CSV
         df = pd.DataFrame(weather_data)
         df["Temperature (F)"] = df["Temperature (C)"] * 9 / 5 + 32
         df["Wind Speed (mph)"] = df["Wind Speed (m/s)"] * 2.23694
         df.to_csv(csv_file, index=False)
 
-    # Load the data and create the combined plot
     try:
         df = pd.read_csv(csv_file)
         fig, ax1 = plt.subplots(figsize=(12, 6))
 
-        # Plot Temperature (C) on the left y-axis
         ax1.set_xlabel("City")
         ax1.set_ylabel("Temperature (C)", color="blue")
         ax1.plot(df["City"], df["Temperature (C)"], marker="o", color="blue", label="Temperature (C)")
         ax1.tick_params(axis="y", labelcolor="blue")
 
-        # Create a second y-axis for Wind Speed (m/s)
         ax2 = ax1.twinx()
         ax2.set_ylabel("Wind Speed (m/s)", color="green")
         ax2.plot(df["City"], df["Wind Speed (m/s)"], marker="s", color="green", label="Wind Speed (m/s)")
         ax2.tick_params(axis="y", labelcolor="green")
 
-        # Add a title and layout adjustments
         plt.title("Combined Temperature and Wind Speed in Various Cities")
         fig.tight_layout()
 

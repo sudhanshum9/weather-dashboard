@@ -30,8 +30,8 @@ Setup and Installation
 ### Clone the Repository
 
 ```bash
-git clone <repository_url>
-cd <repository_folder>
+git clone https://github.com/sudhanshum9/weather-dashboard
+cd weather-dashboard
 ```
 
 ### Set Up a Virtual Environment (Optional)
@@ -62,7 +62,7 @@ The server will run on http://127.0.0.1:8000.
 Open the index.html file in a browser or serve it using a static file server:
 
 ```bash
-python -m http.server 5500  # Optional: To serve the frontend locally
+python -m http.server 5500
 ```
 
 Using the Application
@@ -133,35 +133,3 @@ API Endpoints
 ### GET /download/weather-data:
 
 * Serves the processed weather data as a downloadable CSV file.
-
-Troubleshooting
---------------
-
-### Data Not Loading:
-
-* Ensure the backend server is running at http://127.0.0.1:8000.
-* Check for network errors in the browser's developer tools (F12).
-
-### CSV Download Fails:
-
-* Verify the /download/weather-data endpoint is accessible.
-* Ensure the backend server has permissions to write files.
-
-### API Keys (Optional):
-
-* If using an API requiring keys, set up a .env file in the root directory:
-
-```makefile
-API_KEY=<your_api_key>
-```
-
-* Update the backend code to load keys securely using dotenv.
-
-Future Enhancements
--------------------
-
-* Add user authentication for personalized dashboards.
-* Integrate additional weather metrics like precipitation and air quality.
-* Implement caching to reduce repeated API calls.
-
-Enjoy using the Weather Dashboard! 🌦️
