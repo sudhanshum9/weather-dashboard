@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: #f4f6f9;
+    }
+
+    h1 {
+      color: #2c3e50;
+      text-align: center;
+      margin: 20px 0;
+      font-weight: bold;
+    }
+
+    .card {
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-primary {
+      background-color: #007bff;
+      border-color: #007bff;
+    }
+
+    .btn-primary:hover {
+      background-color: #0056b3;
+      border-color: #0056b3;
+    }
+
+    .sidebar {
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      padding: 15px;
+      height: 100vh;
+      position: sticky;
+      top: 0;
+    }
+
+    .sidebar h5 {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 15px;
+      color: #2c3e50;
+    }
+
+    .data-table {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      background-color: #007bff;
+      color: white;
+      border-top-left-radius: 6px;
+      border-top-right-radius: 6px;
+    }
+
+    .loader {
+      display: none;
+      font-size: 14px;
+      color: #6c757d;
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    #graph img {
+      max-height: 300px;
+      object-fit: contain;
+      width: 100%;
+    }
+
+    @media (max-width: 768px) {
+      table {
+        font-size: 12px;
+      }
+
+      .sidebar {
+        margin-bottom: 20px;
+        height: auto;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar -->
+      <div class="col-md-3">
+        <div class="sidebar">
+          <h5>Filters and Sorting</h5>
+          <div class="mb-3">
+            <label for="sort-by" class="form-label">Sort By</label>
+            <select id="sort-by" class="form-select">
+              <option value="Temperature (C)">Temperature (C)</option>
+              <option value="Temperature (F)">Temperature (F)</option>
+              <option value="Wind Speed (m/s)">Wind Speed (m/s)</option>
+              <option value="Wind Speed (mph)">Wind Speed (mph)</option>
+              <option value="Humidity (%)">Humidity (%)</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="order" class="form-label">Order</label>
+            <select id="order" class="form-select">
+              <option value="desc">Descending</option>
+              <option value="asc">Ascending</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="filter-by" class="form-label">Filter By</label>
+            <select id="filter-by" class="form-select">
+              <option value="">None</option>
+              <option value="City">City</option>
+              <option value="Temperature (C)">Temperature (C)</option>
+              <option value="Humidity (%)">Humidity (%)</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="filter-value" class="form-label">Filter Value</label>
+            <input type="text" id="filter-value" class="form-control" placeholder="Enter filter value">
+          </div>
+          <button class="btn btn-primary w-100 mb-3" onclick="applyFilters()">Apply</button>
+          <button class="btn btn-success w-100" onclick="downloadCSV()">Download CSV</button>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div class="col-md-9">
+        <!-- Title and Add City Button -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h1>🌤 Weather Dashboard</h1>
+          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCityModal">+ Add City</button>
+        </div>
+
+        <!-- Weather Data Table -->
+        <h2>📊 Data Table</h2>
+        <div id="data-table" class="card p-3 data-table">
+          <p class="text-center text-muted">Loading weather data...</p>
+        </div>
+
+        <!-- Temperature Graph -->
+        <div class="mt-4">
+          <h2>📈 Temperature Graph</h2>
+          <div id="graph" class="card p-3">
+            <p class="text-center text-muted">Loading graph...</p>
+          </div>
+        </div>
+
+
+        <div class="mt-4">
+          <h2>Combined Temperature and Wind Speed</h2>
+          <div id="combined-graph" class="card p-3">
+            <p class="text-center text-muted">Loading combined graph...</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Loader -->
+  <div id="loading-message" class="loader">Processing... Please wait.</div>
+
+  <!-- Add City Modal -->
+  <div class="modal fade" id="addCityModal" tabindex="-1" aria-labelledby="addCityModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addCityModalLabel">Add a New City</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="city-input" class="form-label">City Name</label>
+            <input type="text" id="city-input" class="form-control" placeholder="Enter city name">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary" onclick="addNewCity()">Add City</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const baseURL = "http://127.0.0.1:8000";
+
+    // Show or hide the loading message
+    function showLoader(show, message = "Processing...") {
+      const loader = document.getElementById("loading-message");
+      if (!loader) {
+        console.warn("Loader element not found in the DOM.");
+        return;
+      }
+      if (show) {
+        loader.textContent = message;
+        loader.style.display = "block";
+      } else {
+        loader.style.display = "none";
+      }
+    }
+
+    // Fetch weather data with filters and sorting
+    async function fetchWeatherData(filters = {}) {
+      try {
+        const params = new URLSearchParams(filters).toString();
+        const response = await fetch(`${baseURL}/weather-data?${params}`);
+        if (!response.ok) throw new Error(`Error fetching data: ${response.status}`);
+        const data = await response.json();
+        displayTable(data);
+      } catch (error) {
+        console.error("Error fetching weather data:", error);
+        document.getElementById("data-table").innerHTML = "<p class='text-center text-danger'>Failed to load weather data.</p>";
+      }
+    }
+
+    // Display weather data as a table
+    function displayTable(data) {
+      if (!data.length) {
+        document.getElementById("data-table").innerHTML = "<p class='text-center text-muted'>No data available.</p>";
+        return;
+      }
+      const headers = Object.keys(data[0]);
+      let tableHTML = "<table class='table table-bordered table-striped'>";
+      tableHTML += "<thead><tr>";
+      headers.forEach(header => (tableHTML += `<th>${header}</th>`));
+      tableHTML += "</tr></thead><tbody>";
+      data.forEach(row => {
+        tableHTML += "<tr>";
+        headers.forEach(header => (tableHTML += `<td>${row[header]}</td>`));
+        tableHTML += "</tr>";
+      });
+      tableHTML += "</tbody></table>";
+      document.getElementById("data-table").innerHTML = tableHTML;
+    }
+
+    // Apply filters and sorting
+    function applyFilters() {
+      const sortBy = document.getElementById("sort-by").value;
+      const order = document.getElementById("order").value;
+      const filterBy = document.getElementById("filter-by").value;
+      const filterValue = document.getElementById("filter-value").value;
+      const filters = { sort_by: sortBy, order };
+      if (filterBy && filterValue) {
+        filters.filter_by = filterBy;
+        filters.filter_value = filterValue;
+      }
+      showLoader(true, "Applying filters...");
+      fetchWeatherData(filters).finally(() => showLoader(false));
+    }
+
+    // Add a new city and refresh the data
+    async function addNewCity() {
+      const city = document.getElementById("city-input").value.trim();
+      if (!city) {
+        alert("Please enter a city name.");
+        return;
+      }
+
+      try {
+        showLoader(true, `Adding city "${city}"...`);
+        const response = await fetch(`${baseURL}/add-city?city=${city}`, { method: "POST" });
+        if (response.ok) {
+          alert(`City "${city}" added successfully!`);
+          const modal = bootstrap.Modal.getInstance(document.getElementById("addCityModal"));
+          modal.hide();
+          // Fetch updated weather data
+          fetchWeatherData(); // Ensure this updates the table immediately
+        } else {
+          const errorData = await response.json();
+          alert(`Failed to add city: ${errorData.detail}`);
+        }
+      } catch (error) {
+        console.error("Error adding new city:", error);
+        alert("An error occurred while adding the city.");
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    // Fetch and display the graph
+    function displayGraph() {
+      const graphHTML = `<img src="${baseURL}/plot/temperature" alt="Temperature Graph">`;
+      document.getElementById("graph").innerHTML = graphHTML;
+    }
+
+    function displayCombinedGraph() {
+      const graphHTML = `<img src="${baseURL}/plot/combined" alt="Combined Graph">`;
+      document.getElementById("combined-graph").innerHTML = graphHTML;
+    }
+
+
+    // Download CSV
+    function downloadCSV() {
+      window.location.href = `${baseURL}/download/weather-data`;
+    }
+
+    // Initialize weather data and graph
+    function initializeDashboard() {
+      showLoader(true, "Loading weather data...");
+      fetchWeatherData().finally(() => showLoader(false));
+      displayGraph();
+      displayCombinedGraph();
+    }
+
+    // Initialize on page load
+    document.addEventListener("DOMContentLoaded", initializeDashboard);
+  </script>
+</body>
+
+</html>
